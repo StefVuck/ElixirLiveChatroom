@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat Test</title>
+    <script src="/phoenix.js"></script>
+    <style>
+        #messages { 
+            height: 300px; 
+            overflow-y: scroll; 
+            border: 1px solid #ccc; 
+            padding: 10px;
+            margin-bottom: 20px;
+        }
+        .message {
+            padding: 5px;
+            margin: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        #debug { 
+            height: 100px; 
+            overflow-y: scroll; 
+            border: 1px solid #ccc; 
+            padding: 10px; 
+            background: #f5f5f5;
+            margin-top: 20px;
+        }
+        .status {
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #eee;
+        }
+    </style>
+</head>
+<body>
+    <div id="status" class="status">Disconnected</div>
+    <div id="messages"></div>
+    <form id="message-form">
+        <input type="text" id="message-input" placeholder="Type a message...">
+        <button type="submit">Send</button>
+    </form>
+    <div id="debug"></div>
+
+    <script>
+        if (typeof Phoenix === 'undefined') {
+            console.error('Phoenix library not loaded!');
+            document.getElementById('debug').innerHTML = 'Error: Phoenix library failed to load';
+        } else {
+            console.log('Phoenix loaded successfully');
+        }
+
+        function setupSocket() {
+            const socket = new Phoenix.Socket("/socket", {
+                params: { token: "test-token" }
+            });
+
+            socket.onOpen(() => {
+                console.log("Socket opened");
+                document.getElementById('status').textContent = 'Connected';
+            });
+
+            socket.onError((error) => {
+                console.log("Socket error:", error);
+                document.getElementById('status').textContent = 'Error connecting';
+            });
+
+            socket.onClose(() => {
+                console.log("Socket closed");
+                document.getElementById('status').textContent = 'Disconnected';
+            });
+
+            socket.connect();
+
+            const channel = socket.channel("room:lobby", {});
+
+            channel.join()
+                .receive("ok", resp => {
+                    console.log("Joined successfully", resp);
+                })
+                .receive("error", resp => {
+                    console.log("Unable to join", resp);
+                });
+
+            channel.onError(error => console.log("Channel error:", error));
+            channel.onClose(() => console.log("Channel closed"));
+
+            const messageForm = document.getElementById('message-form');
+            const messageInput = document.getElementById('message-input');
+            const messagesContainer = document.getElementById('messages');
+
+            messageForm.addEventListener('submit', e => {
+                e.preventDefault();
+                const message = messageInput.value.trim();
+                if (message) {
+                    channel.push("new_msg", { content: message })
+                        .receive("ok", () => {
+                            messageInput.value = '';
+                        })
+                        .receive("error", resp => {
+                            console.log("Failed to send message:", resp);
+                        });
+                }
+            });
+
+            channel.on("new_msg", payload => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message';
+                messageDiv.textContent = `${payload.message.user_id}: ${payload.message.content}`;
+                messagesContainer.appendChild(messageDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            });
+        }
+
+        // Start the socket connection when the page loads
+        document.addEventListener('DOMContentLoaded', setupSocket);
+    </script>
+</body>
+</html>

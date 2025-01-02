@@ -1,0 +1,17 @@
+services:
+  phoenix:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - MIX_ENV=dev
+    networks:
+      - chat_network
+    command: mix phx.server
+
+networks:
+  chat_network:
+    driver: bridge
